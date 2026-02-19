@@ -1,0 +1,42 @@
+function ingestDocs() {
+  // Get label for incoming documents
+  const label = GmailApp.getUserLabelByName("docs_ingest");
+  if (!label) return;
+
+  // Get latest 10 threads with this label
+  const threads = label.getThreads(0, 10);
+
+  threads.forEach(thread => {
+    const messages = thread.getMessages();
+
+    messages.forEach(message => {
+      const attachments = message.getAttachments();
+
+      attachments.forEach(att => {
+        const payload = {
+          filename: att.getName(),
+          contentType: att.getContentType(),
+          data: Utilities.base64Encode(att.getBytes()),  // Base64 encode attachment
+          sender: message.getFrom(),
+          subject: message.getSubject(),
+          receivedAt: message.getDate().toISOString()
+        };
+
+        // Send payload to your AWS API Gateway endpoint
+        UrlFetchApp.fetch(
+          "https://xxxxxx.execute-api.eu-west-1.amazonaws.com/prod/xxxx", 
+          {
+            method: "post",
+            contentType: "application/json",
+            payload: JSON.stringify(payload),
+            muteHttpExceptions: true
+          }
+        );
+      });
+    });
+
+    // Mark thread as processed
+    thread.removeLabel(label);
+    thread.markRead();
+  });
+}
