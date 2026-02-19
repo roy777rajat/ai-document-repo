@@ -44,6 +44,10 @@ def search_documents_tool(input) -> str:
             elif cleaned:
                 query = cleaned
     
+    # Smart top_k adjustment: Increase if query suggests multiple items
+    if query and any(word in query.lower() for word in ['and', 'both', 'multiple', 'all']):
+        top_k = max(top_k, 10)  # Ensure at least 10 results for multi-item queries
+    
     # Final validation
     if not query or query.strip() == '':
         return ("❌ Error: No search query provided.\n\n"
@@ -68,19 +72,21 @@ def search_documents_tool(input) -> str:
                 output += f"{res.get('text', 'No content')}\n\n"
             
             # Extract and directly answer with specific values
-            extraction_prompt = f"""Extract and directly answer this question with SPECIFIC VALUES and FIELD NAMES.
+            extraction_prompt = f"""Extract and directly answer this question with SPECIFIC VALUES and FIELD NAMES for EACH relevant document/semester.
 
 CRITICAL INSTRUCTIONS:
 1. Look for specific fields like: SGPA, Roll No, GPA, marks, date, amount, account, etc.
-2. Extract these values EXACTLY as they appear in the text
-3. Answer the original user question directly and confidently
-4. DO NOT say "I don't have this information" if the field is VISIBLE in the text above
-5. If numbers/values are present, include them in your answer
+2. Extract these values EXACTLY as they appear in the text for EACH document
+3. If multiple semesters/documents are mentioned, extract information for ALL of them
+4. Answer the original user question directly and confidently
+5. DO NOT say "I don't have this information" if the field is VISIBLE in the text above
+6. If numbers/values are present, include them in your answer
+7. Organize by semester/document when multiple items are requested
 
 Document content:
 {output}
 
-Now extract specific values and answer the original question directly. Be precise and confident."""
+Now extract specific values and answer the original question directly. Be precise and confident about ALL requested information."""
             
             extraction = call_claude_simple(extraction_prompt)
             
