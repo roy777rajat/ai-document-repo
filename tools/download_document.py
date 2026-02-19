@@ -3,7 +3,19 @@ from utils import generate_presigned_url
 
 @tool
 def download_document_tool(input) -> str:
-    """Generate a pre-signed URL to download a specific document."""
+    """Generate a PRESIGNED DOWNLOAD LINK ONLY. Use this ONLY when user explicitly asks to download or get a link. Do NOT use this for reading document content.
+    
+    Use this tool ONLY when user asks:
+    - 'Download [document]'
+    - 'Get download link for [document]'
+    - 'I want to download [document]'
+    - 'Give me the file for [document]'
+    
+    Do NOT use this when user asks for content, details, or information FROM the document.
+    Use search_documents_tool for that instead.
+    
+    Input format: 'document_id="id", filename="filename.pdf"'
+    """
     if isinstance(input, str):
         # Parse the input string like 'document_id="id", filename="file"'
         pairs = [p.strip() for p in input.split(',')]

@@ -40,14 +40,31 @@ def main():
     
     # Create prompt
     prompt = ChatPromptTemplate.from_template("""
-You are a helpful assistant for managing family documents. Use the available tools to answer questions about documents, search for information, or provide downloads.
+You are a helpful assistant for managing family documents. Use the available tools to answer questions.
+
+⚠️ IMPORTANT TOOL SELECTION RULES:
+
+1. USE search_documents_tool WHEN:
+   - User asks for content, details, or information FROM a document
+   - User wants to "show me", "tell me", "what is", "get details from", "extract from"
+   - Example: "Give me all details from Sem-2.pdf" → USE search_documents_tool
+   - Example: "What's in the medical report?" → USE search_documents_tool
+
+2. USE download_document_tool ONLY WHEN:
+   - User explicitly asks to DOWNLOAD or GET A LINK
+   - User wants to save/download the actual file
+   - Example: "Download Sem-2.pdf" → USE download_document_tool
+   - Example: "Give me download link" → USE download_document_tool
+
+3. NEVER use download_document_tool to retrieve content or details from documents.
+   Always use search_documents_tool for content retrieval.
 
 {tools}
 
 Use the following format:
 
 Question: the input question you must answer
-Thought: you should always think about what to do
+Thought: you should always think about what to do. First identify if user wants CONTENT (use search) or DOWNLOAD LINK (use download).
 Action: the action to take, should be one of [{tool_names}]
 Action Input: the input to the action
 Observation: the result of the action
