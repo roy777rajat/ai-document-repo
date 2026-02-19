@@ -80,20 +80,52 @@ Thought:{agent_scratchpad}
     
     # Create agent
     agent = create_react_agent(llm, tools, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, verbose=True, handle_parsing_errors=True)
+    # CRITICAL: Increased max_iterations from default 15 to 30 to handle complex searches
+    agent_executor = AgentExecutor(
+        agent=agent, 
+        tools=tools, 
+        verbose=True, 
+        handle_parsing_errors=True,
+        max_iterations=30,  # Increased from default 15
+        early_stopping_method="generate"
+    )
     
-    print("Welcome to the Family Docs Agent. Ask me anything about your documents.")
+    print("\n" + "="*60)
+    print("Welcome to the Family Docs Agent!")
+    print("Ask me anything about your documents:")
+    print("  Examples:")
+    print("  - 'Give me SGPA and Roll No from Sem-2'")
+    print("  - 'What details are in the medical report?'")
+    print("  - 'Show me academic records'")
+    print("  - 'Download Sem-2.pdf'")
+    print("\nType 'exit' or 'quit' to leave")
+    print("="*60 + "\n")
     
     while True:
-        user_input = input("You: ")
+        user_input = input("\nYou: ").strip()
         if user_input.lower() in ["exit", "quit"]:
+            print("\nGoodbye! Thank you for using Family Docs Agent.")
             break
         
+        if not user_input:
+            print("Please enter a question or command.")
+            continue
+        
         try:
+            print("\n⏳ Processing your request...\n")
             response = agent_executor.invoke({"input": user_input})
-            print("Agent:", response["output"])
+            print("\n" + "="*60)
+            print("Agent Response:")
+            print("="*60)
+            print(response["output"])
+            print("="*60)
         except Exception as e:
-            print("Error:", str(e))
+            error_msg = str(e)
+            print(f"\n❌ Error occurred: {error_msg}")
+            print("\nPlease try again or check if:")
+            print("- AWS credentials are configured")
+            print("- Redis connection is available")
+            print("- Documents have been indexed")
 
 if __name__ == "__main__":
     main()
