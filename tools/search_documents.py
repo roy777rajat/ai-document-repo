@@ -67,11 +67,24 @@ def search_documents_tool(input) -> str:
                 output += f"{'─' * 40}\n"
                 output += f"{res.get('text', 'No content')}\n\n"
             
-            # Add summary of findings
-            summary_prompt = f"Please summarize these findings in 2-3 sentences highlighting key points:\n\n{output}"
-            summary = call_claude_simple(summary_prompt)
+            # Extract and directly answer with specific values
+            extraction_prompt = f"""Extract and directly answer this question with SPECIFIC VALUES and FIELD NAMES.
+
+CRITICAL INSTRUCTIONS:
+1. Look for specific fields like: SGPA, Roll No, GPA, marks, date, amount, account, etc.
+2. Extract these values EXACTLY as they appear in the text
+3. Answer the original user question directly and confidently
+4. DO NOT say "I don't have this information" if the field is VISIBLE in the text above
+5. If numbers/values are present, include them in your answer
+
+Document content:
+{output}
+
+Now extract specific values and answer the original question directly. Be precise and confident."""
             
-            output += f"📝 Summary:\n{summary}\n"
+            extraction = call_claude_simple(extraction_prompt)
+            
+            output += f"📊 Extracted Answer:\n{extraction}\n"
             return output
         else:
             return ("❌ No relevant documents found in the repository.\n\n"
