@@ -101,10 +101,10 @@
 Store this in `dev/python/api`:
 ```json
 {
-  "REDIS_HOST": "your-redis-endpoint",
+  "REDIS_HOST": "[REDACTED-FOR-SECURITY]",
   "REDIS_PORT": 6379,
   "REDIS_USER": "default",
-  "REDIS_PASS": "your-password"
+  "REDIS_PASS": "[REDACTED-FOR-SECURITY]"
 }
 ```
 
