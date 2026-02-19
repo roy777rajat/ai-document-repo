@@ -79,7 +79,7 @@ Observation: the result of the action
 ... (this Thought/Action/Action Input/Observation can repeat N times)
 Thought: I now know the final answer
 Final Answer: the final answer to the original input question
-
+Alawys mention the file name in this manner Sem-1.pdf,Sem-2.pdf as an example, where you get the data.
 Begin!
 
 Question: {input}
