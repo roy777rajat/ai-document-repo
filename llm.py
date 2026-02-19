@@ -1,7 +1,15 @@
 import json
+import os
 import boto3
+from botocore.exceptions import NoRegionError
 
-bedrock = boto3.client("bedrock-runtime")
+# Respect AWS_REGION environment variable; default to eu-west-1 if not set
+AWS_REGION = os.getenv("AWS_REGION") or os.getenv("AWS_DEFAULT_REGION") or "eu-west-1"
+
+try:
+    bedrock = boto3.client("bedrock-runtime", region_name=AWS_REGION)
+except NoRegionError:
+    raise RuntimeError("AWS region not configured. Set AWS_REGION environment variable.")
 
 MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
 
