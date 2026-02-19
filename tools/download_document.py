@@ -14,10 +14,11 @@ def download_document_tool(input) -> str:
     Do NOT use this when user asks for content, details, or information FROM the document.
     Use search_documents_tool for that instead.
     
-    Input format: 'document_id="id", filename="filename.pdf"'
+    Input format: 'document_id="id", filename="filename.pdf"' OR 'filename="filename.pdf"'
+    If only filename is provided, will look up the document_id automatically.
     """
     if isinstance(input, str):
-        # Parse the input string like 'document_id="id", filename="file"'
+        # Parse the input string like 'document_id="id", filename="file"' or just 'filename="file"'
         pairs = [p.strip() for p in input.split(',')]
         kwargs = {}
         for pair in pairs:
@@ -33,6 +34,23 @@ def download_document_tool(input) -> str:
         filename = input.get('filename')
     else:
         return "Error: Invalid input format"
+    
+    # If we have filename but no document_id, look it up
+    if filename and not document_id:
+        try:
+            from utils import get_all_document_metadata
+            metadata = get_all_document_metadata()
+            for doc in metadata:
+                if doc.get('filename') == filename:
+                    # Extract document_id from PK (format: "DOC#123")
+                    pk = doc.get('PK', '')
+                    if pk.startswith('DOC#'):
+                        document_id = pk[4:]  # Remove "DOC#" prefix
+                    break
+            if not document_id:
+                return f"Error: Could not find document_id for filename '{filename}'"
+        except Exception as e:
+            return f"Error looking up document_id: {str(e)}"
     
     if not document_id or not filename:
         return "Error: document_id and filename are required"
