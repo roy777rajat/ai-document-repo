@@ -15,5 +15,6 @@ RUN pip install --upgrade pip && pip install -r requirements.txt
 
 ENV PORT=8000
 
-# Run Uvicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "$PORT"]
+# Run Uvicorn using shell so environment variable $PORT is expanded by the shell
+# Use a default of 8000 if PORT is not provided by the environment
+CMD ["sh", "-c", "uvicorn app:app --host 0.0.0.0 --port ${PORT:-8000}"]
