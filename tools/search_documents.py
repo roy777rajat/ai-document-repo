@@ -1,113 +1,178 @@
 from langchain.tools import tool
 from utils import search_documents
 from llm import call_claude_simple
+
 import re
+import math
+from typing import List, Dict, Tuple
+
+
+# ============================================================
+# TOKENIZATION
+# ============================================================
+
+def tokenize(text: str) -> List[str]:
+    text = text.lower()
+    text = re.sub(r"[^a-z0-9\. ]", " ", text)
+    return [t for t in text.split() if len(t) > 2]
+
+
+# ============================================================
+# INEQUALITY EXTRACTION (VALUE CONDITIONS)
+# ============================================================
+
+def extract_inequality(query: str) -> Tuple[str, float] | None:
+    patterns = [
+        (r"less than\s+(\d+\.?\d*)", "<"),
+        (r"greater than\s+(\d+\.?\d*)", ">"),
+        (r"below\s+(\d+\.?\d*)", "<"),
+        (r"above\s+(\d+\.?\d*)", ">"),
+        (r"<=\s*(\d+\.?\d*)", "<="),
+        (r">=\s*(\d+\.?\d*)", ">="),
+        (r"<\s*(\d+\.?\d*)", "<"),
+        (r">\s*(\d+\.?\d*)", ">"),
+    ]
+
+    for pattern, op in patterns:
+        m = re.search(pattern, query.lower())
+        if m:
+            print(f"\n📐 Inequality detected: {op} {m.group(1)}")
+            return op, float(m.group(1))
+    return None
+
+
+def satisfies_inequality(text: str, op: str, value: float) -> bool:
+    numbers = [float(n) for n in re.findall(r"\d+\.\d+|\d+", text)]
+    for n in numbers:
+        if (
+            (op == "<" and n < value) or
+            (op == ">" and n > value) or
+            (op == "<=" and n <= value) or
+            (op == ">=" and n >= value)
+        ):
+            return True
+    return False
+
+
+# ============================================================
+# DOCUMENT SELECTOR EXTRACTION (CONTEXT-AWARE)
+# ============================================================
+
+def extract_document_selectors(query: str) -> set[int]:
+    """
+    Extract document selectors ONLY when numbers are tied
+    to document-referencing context (e.g. sem, semester, part, doc).
+    """
+    query = query.lower()
+
+    matches = re.findall(
+        r"(?:sem|semester|document|doc|part)\s*(\d+)",
+        query
+    )
+
+    selectors = {int(n) for n in matches}
+    print(f"\n🎯 Document selectors resolved: {selectors}")
+    return selectors
+
+
+def filename_satisfies_selectors(filename: str, selectors: set[int]) -> bool:
+    if not selectors:
+        return True
+    fname_nums = set(map(int, re.findall(r"\d+", filename)))
+    return bool(fname_nums & selectors)
+
+
+# ============================================================
+# SCORING
+# ============================================================
+
+def score_chunk(query: str, chunk: str) -> float:
+    q_tokens = tokenize(query)
+    c_tokens = tokenize(chunk)
+
+    if not q_tokens or not c_tokens:
+        return 0.0
+
+    overlap = len(set(q_tokens) & set(c_tokens)) / len(q_tokens)
+    token_density = sum(1 for t in c_tokens if t in q_tokens) / len(c_tokens)
+    numeric_density = len(re.findall(r"\d+\.\d+|\d+", chunk)) / len(c_tokens)
+    length_penalty = math.log(len(c_tokens) + 1)
+
+    return (overlap * 3 + token_density * 8 + numeric_density * 5) / length_penalty
+
+
+# ============================================================
+# GROUPING & CONFIDENCE
+# ============================================================
+
+def group_documents(chunks: List[Dict]) -> Dict[str, Dict]:
+    grouped = {}
+    for c in chunks:
+        f = c["filename"]
+        grouped.setdefault(f, {"chunks": [], "score": 0.0})
+        grouped[f]["chunks"].append(c["text"])
+        grouped[f]["score"] += c["score"]
+    return grouped
+
+
+def compute_confidence(grouped: Dict[str, Dict]) -> Dict[str, float]:
+    max_score = max(d["score"] for d in grouped.values())
+    return {k: round(v["score"] / max_score, 3) for k, v in grouped.items()}
+
+
+# ============================================================
+# TOOL
+# ============================================================
 
 @tool
 def search_documents_tool(input) -> str:
-    """Retrieve FULL CONTENT and detailed information from documents. Use this to answer questions about document content, get details, summaries, or extract information. Do NOT use download_document_tool for content retrieval.
-    
-    Use this tool when user asks:
-    - 'Give me all details from [document name]'
-    - 'What is in [document]?'
-    - 'Find information about [topic]'
-    - 'Show me content from [document]'
-    - 'Extract details from [document]'
-    
-    Input format: 'query="search text", top_k=5'
     """
-    query = None
-    top_k = 5
-    
-    # Handle dict input
-    if isinstance(input, dict):
-        query = input.get('query')
-        top_k = input.get('top_k', 5)
-    # Handle string input with multiple parsing strategies
-    elif isinstance(input, str):
-        # Strategy 1: Try regex pattern for quoted query
-        if 'query=' in input:
-            # Match: query="anything" or query='anything' or query=anything
-            match = re.search(r'query\s*=\s*["\']?([^",]+)["\']?(?:\s*,|$)', input)
-            if match:
-                query = match.group(1).strip()
-                # Try to extract top_k if present
-                top_k_match = re.search(r'top_k\s*=\s*(\d+)', input)
-                if top_k_match:
-                    top_k = int(top_k_match.group(1))
-        
-        # Strategy 2: If still no query, treat entire input as query
-        if not query:
-            cleaned = input.replace('query=', '').replace('"', '').strip()
-            if cleaned and ',' in cleaned:
-                query = cleaned.split(',')[0].strip()
-            elif cleaned:
-                query = cleaned
-    
-    # Smart top_k adjustment: Increase if query suggests multiple items
-    if query and any(word in query.lower() for word in ['and', 'both', 'multiple', 'all']):
-        top_k = max(top_k, 10)  # Ensure at least 10 results for multi-item queries
-    
-    # Final validation
-    if not query or query.strip() == '':
-        return ("❌ Error: No search query provided.\n\n"
-                "Please provide a search query. Examples:\n"
-                "- 'SGPA Roll No from Sem-2'\n"
-                "- 'medical report details'\n"
-                "- 'academic record data'")
-    
-    print(f"\n🔍 Searching for: '{query}' (top_k={top_k})")
-    
-    try:
-        results = search_documents(query, top_k)
-        print(f"✅ Found {len(results) if results else 0} result(s)")
-        
-        if results:
-            # For detailed content requests, return comprehensive results
-            output = f"✅ Found {len(results)} relevant document(s):\n\n"
-            
-            for idx, res in enumerate(results, 1):
-                output += f"【Document {idx}】 {res.get('filename', 'Unknown')}\n"
-                output += f"{'─' * 40}\n"
-                output += f"{res.get('text', 'No content')}\n\n"
-            
-            # Extract and directly answer with specific values
-            extraction_prompt = f"""Extract and directly answer this question with SPECIFIC VALUES and FIELD NAMES for EACH relevant document/semester.
+    Constraint-aware semantic document search with inequality support.
+    """
 
-CRITICAL INSTRUCTIONS:
-1. Look for specific fields like: SGPA, Roll No, GPA, marks, date, amount, account, etc.
-2. Extract these values EXACTLY as they appear in the text for EACH document
-3. If multiple semesters/documents are mentioned, extract information for ALL of them
-4. Answer the original user question directly and confidently
-5. DO NOT say "I don't have this information" if the field is VISIBLE in the text above
-6. If numbers/values are present, include them in your answer
-7. Organize by semester/document when multiple items are requested
+    query = input.get("query") if isinstance(input, dict) else str(input)
+    top_k = input.get("top_k", 5) if isinstance(input, dict) else 5
 
-Document content:
-{output}
+    print(f"\n🔍 VECTOR SEARCH → '{query}'")
+    raw = search_documents(query, top_k)
+    print(f"🧠 Vector returned {len(raw)} chunks")
 
-Now extract specific values and answer the original question directly. Be precise and confident about ALL requested information."""
-            
-            extraction = call_claude_simple(extraction_prompt)
-            
-            output += f"📊 Extracted Answer:\n{extraction}\n"
-            return output
-        else:
-            return ("❌ No relevant documents found in the repository.\n\n"
-                   "Possible reasons:\n"
-                   "1. No documents have been indexed yet (need to upload via Lambda)\n"
-                   "2. Your search query doesn't match any document content\n"
-                   "3. Documents may not be in Redis vector store yet\n\n"
-                   "Next steps:\n"
-                   "- Upload documents to S3 bucket 'family-docs-raw'\n"
-                   "- Trigger the email ingestor Lambda\n"
-                   "- Wait for vector processor Lambda to index documents")
-    except Exception as e:
-        error_msg = str(e)
-        print(f"❌ Error during search: {error_msg}")
-        return (f"❌ Error searching documents: {error_msg}\n\n"
-               f"Troubleshooting:\n"
-               f"1. Check if Redis is connected and running\n"
-               f"2. Verify AWS credentials are configured\n"
-               f"3. Ensure documents have been indexed in Redis\n"
-               f"4. Check Bedrock model access for embeddings")
+    inequality = extract_inequality(query)
+    selectors = extract_document_selectors(query)
+
+    constrained = []
+    for r in raw:
+        if not filename_satisfies_selectors(r["filename"], selectors):
+            continue
+
+        if inequality:
+            op, val = inequality
+            if not satisfies_inequality(r["text"], op, val):
+                continue
+
+        r["score"] = score_chunk(query, r["text"])
+        constrained.append(r)
+
+    if not constrained:
+        return "❌ No documents satisfy query constraints."
+
+    grouped = group_documents(constrained)
+    confidence = compute_confidence(grouped)
+
+    context = ""
+    for fname, data in grouped.items():
+        context += f"\n📄 {fname}\n"
+        for c in data["chunks"]:
+            context += c + "\n"
+
+    answer = call_claude_simple(
+        f"Answer the question using ONLY the context below.\n\n{context}\n\nQuestion: {query}"
+    )
+
+    return f"""
+ANSWER:
+{answer}
+
+CONFIDENCE:
+{confidence}
+""".strip()
