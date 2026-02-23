@@ -106,19 +106,17 @@ def api_query(req: QueryRequest):
                 f"⏱️ Response Time: {elapsed_ms} ms"
             )
             return {
-                "answer": answer_text,
-                "response_time_ms": elapsed_ms
+                "answer": answer_text
             }
 
         # ✅ Append response time inside the answer
         answer_text = (
             f"{result}\n\n"
-            f"⏱️ Response Time: {elapsed_ms} ms"
+            f" -TS:{elapsed_ms} ms"
         )
 
         return {
-            "answer": answer_text,
-            "response_time_ms": elapsed_ms
+            "answer": answer_text
         }
 
     except Exception:
