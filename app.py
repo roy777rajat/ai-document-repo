@@ -13,6 +13,8 @@ from agent_runner import run_agent
 from tools.search_documents import search_documents_tool
 from tools.download_document import download_document_tool
 
+import time
+from fastapi import HTTPException
 
 # ============================================================
 # Logging Configuration
@@ -71,6 +73,7 @@ def health():
     return {"status": "ok", "service": "family-docs-agent"}
 
 
+
 # ============================================================
 # Main Agent API
 # ============================================================
@@ -79,20 +82,53 @@ def api_query(req: QueryRequest):
     if not req.question:
         raise HTTPException(status_code=400, detail="question is required")
 
+    # ⏱️ Start timing
+    start_time = time.perf_counter()
+
     logger.info(f"REST query received: {req.question}")
 
     try:
         future = executor.submit(run_agent, req.question)
         result = future.result()
 
+        # ⏱️ End timing
+        end_time = time.perf_counter()
+        elapsed_ms = round((end_time - start_time) * 1000, 2)
+
+        logger.info(
+            f"REST query completed in {elapsed_ms} ms | question='{req.question}'"
+        )
+
         if not result:
             logger.warning("Agent returned empty response")
-            return {"answer": "Sorry, I could not find an answer to that."}
+            answer_text = (
+                "Sorry, I could not find an answer to that.\n\n"
+                f"⏱️ Response Time: {elapsed_ms} ms"
+            )
+            return {
+                "answer": answer_text,
+                "response_time_ms": elapsed_ms
+            }
 
-        return {"answer": result}
+        # ✅ Append response time inside the answer
+        answer_text = (
+            f"{result}\n\n"
+            f"⏱️ Response Time: {elapsed_ms} ms"
+        )
+
+        return {
+            "answer": answer_text,
+            "response_time_ms": elapsed_ms
+        }
 
     except Exception:
-        logger.exception("Agent execution failed")
+        end_time = time.perf_counter()
+        elapsed_ms = round((end_time - start_time) * 1000, 2)
+
+        logger.exception(
+            f"Agent execution failed after {elapsed_ms} ms | question='{req.question}'"
+        )
+
         raise HTTPException(
             status_code=500,
             detail="Agent failed while processing the request",

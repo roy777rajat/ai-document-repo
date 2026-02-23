@@ -8,7 +8,7 @@ def run_test():
 
     result = search_documents_tool.run({
         "input": {
-            "query": "Please share the confirmaton tcs letter content?",
+            "query": "Can you please share the full document download link for Aishiki Reliable center prescription?",
             "top_k": 5
         }
     })
