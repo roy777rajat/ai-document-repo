@@ -15,7 +15,7 @@ def get_secrets(secret_name):
 secret = get_secrets("dev/python/api")
 
 
-LANGCACHE_ENABLED = True
+LANGCACHE_ENABLED = False
 
 LANGCACHE_API_KEY = secret["LANGCACHE_API_KEY"]
 LANGCACHE_SERVER_URL = secret["LANGCACHE_SERVER_URL"]
