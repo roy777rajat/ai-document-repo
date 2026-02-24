@@ -64,6 +64,9 @@ def get_all_document_metadata_tool(tool_input=None) -> str:
     and avoids unnecessary or incorrect tool usage.
     """
     try:
+        
+        print("----------I am entering into get_all_document_metadata tool call -----------------")
+
         metadata = get_all_document_metadata()
         if metadata:
             table_str = "Document Metadata:\n"

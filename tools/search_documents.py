@@ -6,7 +6,7 @@ import re
 import math
 from typing import List, Dict, Tuple
 
-# 🔵 LangCache helpers (clean separation)
+# 🔵 LangCache helpers
 from lang_cache_utils import langcache_store, langcache_lookup
 
 
@@ -62,14 +62,24 @@ def satisfies_inequality(text: str, op: str, value: float) -> bool:
 def extract_document_selectors(query: str) -> dict:
     q = query.lower()
 
+    ranking_match = re.search(r"\b(top|first|last|max|min|avg)\s+(\d+)\b", q)
+    ranking_number = int(ranking_match.group(2)) if ranking_match else None
+
     filenames = set(re.findall(r"\b[a-z0-9\-_]+\.pdf\b", q))
-    numbers = set(map(int, re.findall(r"\d+", q)))
+    all_numbers = set(map(int, re.findall(r"\d+", q)))
+
+    if ranking_number is not None:
+        all_numbers.discard(ranking_number)
 
     print(f"\n🎯 Document selectors resolved:")
     print(f"   filenames → {filenames}")
-    print(f"   numbers   → {numbers}")
+    print(f"   numbers   → {all_numbers}")
 
-    return {"filenames": filenames, "numbers": numbers}
+    return {
+        "filenames": filenames,
+        "numbers": all_numbers,
+        "limit": ranking_number
+    }
 
 
 def filename_matches(filename: str, selectors: dict) -> bool:
@@ -128,81 +138,26 @@ def compute_confidence(grouped: Dict[str, Dict]) -> Dict[str, float]:
 # TOOL
 # ============================================================
 
-#  """
-#     Semantic document search with filename filtering,
-#     inequality enforcement, chunk re-ranking,
-#     document grouping, and confidence scoring.
-#     """
-
 @tool
-def search_documents_tool(input) -> str:
+def search_documents_tool(input) -> dict:
     """
-    Interpret the user's intent and retrieve the correct document CONTENT,
-    not just matching filenames or keywords.
-
-    Functional behavior and intent handling:
-
-    1. User Intent First (Not Filename Matching)
-       - If a user mentions filenames such as:
-         * "Sem-1.pdf"
-         * "Sema-1.pdf and Sem-2.pdf"
-         * "details from sem 1 and sem 3"
-       - The system does NOT treat this as a request to return filenames.
-       - Instead, it understands that the user is asking for the
-         CONTENT INSIDE those documents.
-
-    2. Filename as a Constraint, Not the Result
-       - Filenames and numeric references (e.g., 1, 2, 3) are interpreted
-         as selection constraints to narrow down relevant documents.
-       - Once a document is selected via filename or number inference,
-         the FULL semantic content of that document is still retrieved,
-         re-ranked, grouped, and passed to the LLM.
-       - The system never answers using filenames alone.
-
-    3. Semantic Content Retrieval
-       - Even when filenames are explicitly mentioned, the system performs
-         semantic search over document chunks to retrieve meaningful content.
-       - This ensures that answers are grounded in actual document text,
-         not metadata.
-
-    4. Mixed Intent Handling
-       - Supports mixed queries such as:
-         * "Explain SGPA from Sem-1 and Sem-3"
-         * "Share all details from sem 2 pdf"
-         * "SGPA less than 7 in Sem-1"
-       - In these cases:
-         * Filenames → document scope
-         * Inequalities → numeric filtering
-         * Natural language → semantic intent
-       - All constraints are applied BEFORE answer generation.
-
-    5. Context Preservation for Answering
-       - After filtering and re-ranking, the system builds a complete
-         evidence context from the selected document chunks.
-       - This full context (not filenames) is passed to the LLM so that:
-         * Answers are factual
-         * No hallucinated information is introduced
-         * The response reflects the actual document content
-
-    6. Safe Defaults
-       - If a user provides only a filename with no clear question,
-         the system assumes the intent is to understand or extract
-         information from that document.
-       - If no supporting content is found, the system explicitly
-         states that the answer is not available in the documents.
-
-    In short:
-    - Filenames guide WHERE to look.
-    - Semantic search determines WHAT to read.
-    - Re-ranking decides WHAT matters most.
-    - The LLM answers ONLY from retrieved content.
-
-    This ensures correct, explainable behavior even when users
-    provide partial, ambiguous, or shorthand queries.
+    Semantic document search.
+    Returns:
+    - Answer (LLM-generated)
+    - Resolved filenames (for downstream tools)
     """
 
-    query = input.get("full_question") if isinstance(input, dict) else str(input)
-    top_k = input.get("top_k", 5) if isinstance(input, dict) else 5
+    query = None
+    top_k = 5
+
+    if isinstance(input, dict):
+        query = input.get("full_question") or input.get("query")
+        top_k = input.get("top_k", 5)
+    elif isinstance(input, str):
+        query = input.strip()
+
+    if not query or not isinstance(query, str):
+        return {"answer": "❌ Error: search query is missing or invalid."}
 
     print(f"\n🔍 VECTOR SEARCH → '{query}'")
 
@@ -226,14 +181,11 @@ def search_documents_tool(input) -> str:
         filtered.append(r)
 
     if not filtered:
-        return "❌ No documents satisfy query constraints."
+        return {"answer": "❌ No documents satisfy query constraints."}
 
     grouped = group_documents(filtered)
     confidence = compute_confidence(grouped)
 
-    # -------------------------------
-    # BUILD FINAL CONTEXT (LLM ONLY)
-    # -------------------------------
     context = ""
     for fname, data in grouped.items():
         context += f"\n📄 {fname}\n"
@@ -242,7 +194,6 @@ def search_documents_tool(input) -> str:
 
     final_prompt = f"""
 Answer the question using ONLY the context below.
-If the answer is not supported, say so clearly.
 
 Context:
 {context}
@@ -251,31 +202,23 @@ Question:
 {query}
 """
 
-    # ============================================================
-    # 🔵 LANGCACHE → LLM BOUNDARY (FIXED)
-    # ============================================================
-
-    # IMPORTANT:
-    # LangCache must receive a SHORT prompt (<=1024 chars).
-    # We use the USER QUESTION as the semantic cache key.
     langcache_key = f"Q: {query.strip()}"
-
-    print(f"🔎 CHECKING LANGCACHE (key='{langcache_key[:1023]}...')")
-
     cached_answer = langcache_lookup(langcache_key)
 
     if cached_answer:
-        print("⚡ LANGCACHE HIT → RETURNING CACHED ANSWER")
         answer = cached_answer
     else:
-        print("🤖 LANGCACHE MISS → CALLING CLAUDE")
         answer = call_claude_simple(final_prompt)
         langcache_store(langcache_key, answer)
 
-    return f"""
+    return {
+        "answer": f"""
 ANSWER:
 {answer}
 
 CONFIDENCE:
 {confidence}
-""".strip()
+""".strip(),
+        "resolved_filenames": list(grouped.keys()),
+        "confidence": confidence
+    }

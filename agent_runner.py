@@ -1,188 +1,116 @@
-import os
-import importlib.util
-from functools import lru_cache
+import uuid
+import time
+from typing import List, Dict, Any
 
-from langchain_aws import ChatBedrock
-from langchain.agents import AgentExecutor, create_react_agent
-from langchain.prompts import ChatPromptTemplate
+# ============================================================
+# 🔵 Planner
+# ============================================================
+from plan_generator import generate_plan
+
+# ============================================================
+# 🔵 Tools (DIRECT, ATOMIC)
+# ============================================================
+from tools.search_documents import search_documents_tool
+from tools.download_document import download_document_tool
+from tools.get_all_document_metadata import get_all_document_metadata_tool
 
 
 # ============================================================
-# Tool Loader (IDENTICAL behavior to main.py)
+# 🔵 Tool Registry (EXTENSIBLE)
 # ============================================================
-def load_tools():
-    tools_dir = os.path.join(os.path.dirname(__file__), "tools")
-    tools = []
-
-    for filename in os.listdir(tools_dir):
-        if filename.endswith(".py") and filename != "__init__.py":
-            spec = importlib.util.spec_from_file_location(
-                filename[:-3],
-                os.path.join(tools_dir, filename)
-            )
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-
-            for attr in module.__dict__.values():
-                if (
-                    hasattr(attr, "name")
-                    and hasattr(attr, "description")
-                    and callable(getattr(attr, "run", None))
-                ):
-                    tools.append(attr)
-
-    return tools
+TOOL_REGISTRY = {
+    "search_documents": search_documents_tool,
+    "download_document": download_document_tool,
+    "list_documents": get_all_document_metadata_tool,
+}
 
 
 # ============================================================
-# Agent Factory (BUILT ONCE, REUSED)
-# ============================================================
-@lru_cache(maxsize=1)
-def get_agent_executor() -> AgentExecutor:
-    tools = load_tools()
-
-    llm = ChatBedrock(
-        model_id=os.getenv(
-            "BEDROCK_MODEL_ID",
-            "anthropic.claude-3-haiku-20240307-v1:0"
-        ),
-        region_name=os.getenv("AWS_REGION", "eu-west-1"),
-        model_kwargs={
-            "temperature": float(os.getenv("MODEL_TEMPERATURE", "0.0"))
-        },
-    )
-
-#     prompt = ChatPromptTemplate.from_template("""
-# You are a helpful assistant for managing family documents. Use the available tools to answer questions.
-
-# ⚠️ IMPORTANT TOOL SELECTION RULES:
-
-# 1. USE search_documents_tool WHEN:
-#    - User asks for content, details, or information FROM a document
-#    - User wants to "show me", "tell me", "what is", "get details from", "extract from"
-#    - Example: "Give me all details from Sem-2.pdf" → USE search_documents_tool
-#    - Example: "What's in the medical report?" → USE search_documents_tool
-
-# 2. USE download_document_tool ONLY WHEN:
-#    - User explicitly asks to DOWNLOAD or GET A LINK
-#    - User wants to save/download the actual file
-#    - Example: "Download Sem-2.pdf" → USE download_document_tool
-#    - Example: "Give me download link" → USE download_document_tool
-#    - Input can be just 'filename="Sem-2.pdf"' - tool will look up document_id automatically
-
-# 3. NEVER use download_document_tool to retrieve content or details from documents.
-#    Always use search_documents_tool for content retrieval.
-
-# 🔍 SEARCH STRATEGY FOR MULTIPLE ITEMS:
-# When user asks for information from multiple documents or semesters:
-# - DO ONE COMPREHENSIVE SEARCH with a broad query like "SGPA" or "academic records"
-# - Set top_k higher (e.g., 10) to get all relevant documents
-# - Extract specific information for all requested items in one pass
-# - Example: "Give me Sem-1 and Sem-4 SGPA" → search "SGPA" with top_k=10, NOT separate searches
-# IMPORTANT:
-# - Always pass the FULL original user question to tools
-# - Do NOT summarize or shorten tool inputs
-# - Tool inputs MUST preserve user intent, constraints, and phrasing
-
-# {tools}
-
-# Use the following format:
-
-# Question: the input question you must answer
-# Thought: you should always think about what to do. First identify if user wants CONTENT (use search) or DOWNLOAD LINK (use download).
-# Action: the action to take, should be one of [{tool_names}]
-# Action Input: the input to the action
-# Observation: the result of the action
-# ... (this Thought/Action/Action Input/Observation can repeat N times)
-# Thought: I now know the final answer
-# Final Answer: the final answer to the original input question
-# Alawys mention the file name in this manner Sem-1.pdf,Sem-2.pdf as an example, where you get the data.
-# Begin!
-
-# Question: {input}
-# Thought:{agent_scratchpad}
-# """)
-    prompt = ChatPromptTemplate.from_template("""
-You are a helpful assistant for managing family documents.
-Your primary responsibility is to identify the user's intent
-and select the correct tool.
-
-IMPORTANT INTENT RULES (STRICT):
-
-1. CONTENT INTENT → use search_documents_tool
-   Use this tool when the user wants to:
-   - Read, understand, explain, summarize, or extract information
-   - Ask questions like:
-     * "What is in the document?"
-     * "Give me details from Sem-1.pdf"
-     * "Explain my prescription"
-     * "Show SGPA from Sem-2"
-   Filenames or document names are constraints only.
-   The goal is always to retrieve and reason over DOCUMENT CONTENT.
-
-2. DOWNLOAD INTENT → use download_document_tool
-   Use this tool ONLY when the user explicitly wants:
-   - A download link
-   - The file itself
-   - To save or download the document
-   - To know the doucment name or document id or path of that file/document use  get_all_document_metadata_tool and then you can use download_document_tool
-   Examples:
-     * "Download Sem-2.pdf"
-     * "Give me the download link"
-     * "I want the file"
-   NEVER use this tool to answer content-related questions.
-
-3. DISCOVERY / LISTING INTENT → use get_all_document_metadata_tool
-   Use this tool ONLY when the user asks:
-   - What documents exist
-   - To list or show all available document
-   - To get or determine the document ID or document name use this tool. 
-   This tool does NOT return document content.
-
-GLOBAL RULES:
-- Always pass the FULL original user question to the selected tool.
-- Never summarize, shorten, or rephrase tool input.
-- Do NOT combine tools unless explicitly required by the question.
-- Trust tool logic for filtering, ranking, and constraints.
-
-AVAILABLE TOOLS:
-{tools}
-
-You must follow this format:
-
-Question: the original user question
-Thought: identify the user's intent (CONTENT, DOWNLOAD, or DISCOVERY)
-Action: the tool to use (one of [{tool_names}])
-Action Input: the full user question
-Observation: the tool result
-Thought: I now know the final answer
-Final Answer: the answer to the original question
-
-Always mention filenames in the format: Sem-1.pdf, Sem-2.pdf
-when referring to documents used.
-
-Begin.
-
-Question: {input}
-Thought:{agent_scratchpad}
-""")
-    agent = create_react_agent(llm, tools, prompt)
-
-    return AgentExecutor(
-        agent=agent,
-        tools=tools,
-        verbose=False,
-        handle_parsing_errors=True,
-        max_iterations=30,          # 🔥 SAME AS CLI
-        early_stopping_method="generate"
-        
-    )
-
-
-# ============================================================
-# Public API used by REST / WhatsApp
+# 🔵 MAIN AGENT ENTRY (Planner → Executor)
 # ============================================================
 def run_agent(user_input: str) -> str:
-    executor = get_agent_executor()
-    response = executor.invoke({"input": user_input,"full_question": user_input})
-    return response.get("output", "")
+    """
+    Production-grade agent execution:
+
+    - Planner decides WHAT steps to run
+    - Executor runs steps strictly in order
+    - NO ReAct
+    - NO dynamic step insertion
+    - Executor manages execution DATA (context)
+    """
+
+    trace_id = str(uuid.uuid4())
+    start_ts = time.perf_counter()
+
+    print(f"\n🧠 TRACE_ID = {trace_id}")
+    print("🧠 GENERATING PLAN")
+
+    # --------------------------------------------------------
+    # STEP 1: PLAN
+    # --------------------------------------------------------
+    plan = generate_plan(user_input)
+
+    if not plan:
+        return "❌ Unable to determine how to answer your question."
+
+    print(f"🧠 EXECUTION PLAN → {plan}")
+
+    outputs: List[str] = []
+
+    # 🔵 EXECUTION CONTEXT (DATA FLOW ONLY)
+    context: Dict[str, Any] = {}
+
+    # --------------------------------------------------------
+    # STEP 2: EXECUTE PLAN (STRICT ORDER)
+    # --------------------------------------------------------
+    for step in plan:
+        tool = TOOL_REGISTRY.get(step)
+
+        if not tool:
+            outputs.append(f"⚠️ Unknown step ignored: {step}")
+            continue
+
+        print(f"\n🟢 EXECUTING STEP → {step}")
+        step_start = time.perf_counter()
+
+        try:
+            # 🔥 TOOLS RECEIVE FULL QUESTION + CONTEXT
+            if step == "download_document":
+                filename = None
+            if "resolved_filenames" in context and context["resolved_filenames"]:
+                filename = context["resolved_filenames"][0]
+                # Pass filename explicitly
+                result = tool.run(f'filename="{filename}"')
+            else:
+                result = tool.run(user_input)
+
+            # -------------------------------
+            # CONTEXT MERGE (IF TOOL RETURNS DATA)
+            # -------------------------------
+            if isinstance(result, dict):
+                context.update(result)
+                if "answer" in result:
+                    outputs.append(result["answer"])
+            else:
+                outputs.append(result)
+
+        except Exception as e:
+            outputs.append(f"❌ Error executing {step}: {str(e)}")
+
+        step_end = time.perf_counter()
+        print(
+            f"⏱️ STEP {step} completed in "
+            f"{round((step_end - step_start) * 1000, 2)} ms"
+        )
+
+    # --------------------------------------------------------
+    # STEP 3: FINAL RESPONSE
+    # --------------------------------------------------------
+    end_ts = time.perf_counter()
+    total_ms = round((end_ts - start_ts) * 1000, 2)
+
+    final_answer = "\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n".join(outputs)
+    final_answer += f"\n\n⏱️ Response Time: {total_ms} ms"
+    final_answer += f"\n🧵 Trace ID: {trace_id}"
+
+    return final_answer

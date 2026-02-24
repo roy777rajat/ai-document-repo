@@ -8,7 +8,7 @@ def run_test():
 
     result = search_documents_tool.run({
         "input": {
-            "query": "Can you please share the full document download link for Aishiki Reliable center prescription?",
+            "query": "Share the top 3 transactions from HSBC statement pdf?",
             "top_k": 5
         }
     })
