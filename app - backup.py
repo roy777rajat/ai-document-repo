@@ -14,6 +14,7 @@ from tools.search_documents import search_documents_tool
 from tools.download_document import download_document_tool
 
 import time
+from fastapi import HTTPException
 
 # ============================================================
 # Logging Configuration
@@ -52,38 +53,6 @@ else:
 
 
 # ============================================================
-# WhatsApp Limits
-# ============================================================
-WHATSAPP_MAX_CHARS = 1400  # Safe limit below Twilio cutoff
-
-
-def chunk_text(text: str, max_len: int = WHATSAPP_MAX_CHARS):
-    """
-    Split text into WhatsApp-safe chunks.
-    Prefer paragraph boundaries; hard-split if needed.
-    """
-    chunks = []
-    current = ""
-
-    for paragraph in text.split("\n\n"):
-        if len(paragraph) > max_len:
-            for i in range(0, len(paragraph), max_len):
-                chunks.append(paragraph[i:i + max_len])
-            continue
-
-        if len(current) + len(paragraph) + 2 <= max_len:
-            current += paragraph + "\n\n"
-        else:
-            chunks.append(current.strip())
-            current = paragraph + "\n\n"
-
-    if current.strip():
-        chunks.append(current.strip())
-
-    return chunks
-
-
-# ============================================================
 # Request Models
 # ============================================================
 class QueryRequest(BaseModel):
@@ -104,21 +73,25 @@ def health():
     return {"status": "ok", "service": "family-docs-agent"}
 
 
+
 # ============================================================
-# Main Agent API (UNCHANGED)
+# Main Agent API
 # ============================================================
 @app.post("/api/v1/query")
 def api_query(req: QueryRequest):
     if not req.question:
         raise HTTPException(status_code=400, detail="question is required")
 
+    # ⏱️ Start timing
     start_time = time.perf_counter()
+
     logger.info(f"REST query received: {req.question}")
 
     try:
         future = executor.submit(run_agent, req.question)
         result = future.result()
 
+        # ⏱️ End timing
         end_time = time.perf_counter()
         elapsed_ms = round((end_time - start_time) * 1000, 2)
 
@@ -127,15 +100,33 @@ def api_query(req: QueryRequest):
         )
 
         if not result:
+            logger.warning("Agent returned empty response")
+            answer_text = (
+                "Sorry, I could not find an answer to that.\n\n"
+                f"⏱️ Response Time: {elapsed_ms} ms"
+            )
             return {
-                "answer": "Sorry, I could not find an answer to that."
+                "answer": answer_text
             }
 
-        answer_text = f"{result}\n\n-TS:{elapsed_ms} ms"
-        return {"answer": answer_text}
+        # ✅ Append response time inside the answer
+        answer_text = (
+            f"{result}\n\n"
+            f" -TS:{elapsed_ms} ms"
+        )
+
+        return {
+            "answer": answer_text
+        }
 
     except Exception:
-        logger.exception("Agent execution failed")
+        end_time = time.perf_counter()
+        elapsed_ms = round((end_time - start_time) * 1000, 2)
+
+        logger.exception(
+            f"Agent execution failed after {elapsed_ms} ms | question='{req.question}'"
+        )
+
         raise HTTPException(
             status_code=500,
             detail="Agent failed while processing the request",
@@ -143,7 +134,7 @@ def api_query(req: QueryRequest):
 
 
 # ============================================================
-# Search API (UNCHANGED)
+# Search API
 # ============================================================
 @app.post("/api/v1/search")
 def api_search(req: SearchRequest):
@@ -153,7 +144,7 @@ def api_search(req: SearchRequest):
 
 
 # ============================================================
-# Download API (UNCHANGED)
+# Download API
 # ============================================================
 @app.get("/api/v1/download")
 def api_download(filename: Optional[str] = None, document_id: Optional[str] = None):
@@ -165,6 +156,8 @@ def api_download(filename: Optional[str] = None, document_id: Optional[str] = No
 
     if filename and not document_id:
         input_str = f'filename="{filename}"'
+    elif document_id and filename:
+        input_str = f'document_id="{document_id}", filename="{filename}"'
     else:
         input_str = f'document_id="{document_id}", filename="{filename or ""}"'
 
@@ -177,15 +170,16 @@ def api_download(filename: Optional[str] = None, document_id: Optional[str] = No
 
 
 # ============================================================
-# Random API (UNCHANGED)
+# Random Number API (Dummy Test)
 # ============================================================
 @app.post("/api/v1/random")
 def api_random():
-    return {"random_number": random.randint(1, 1000)}
+    rand = random.randint(1, 1000)
+    return {"random_number": rand}
 
 
 # ============================================================
-# WhatsApp Webhook (UPDATED ONLY HERE)
+# WhatsApp Webhook
 # ============================================================
 @app.post("/api/v1/whatsapp/webhook")
 async def whatsapp_webhook(request: Request):
@@ -211,24 +205,13 @@ async def whatsapp_webhook(request: Request):
         if not answer:
             answer = "Sorry, I could not find an answer to that."
 
-        chunks = chunk_text(answer)
+        twilio_client.messages.create(
+            from_=TWILIO_WHATSAPP_NUMBER,
+            to=from_number,
+            body=answer,
+        )
 
-        if len(chunks) > 1:
-            twilio_client.messages.create(
-                from_=TWILIO_WHATSAPP_NUMBER,
-                to=from_number,
-                body="📄 The response is long. Sending in multiple messages…",
-            )
-
-        for idx, chunk in enumerate(chunks, start=1):
-            prefix = f"({idx}/{len(chunks)})\n" if len(chunks) > 1 else ""
-            twilio_client.messages.create(
-                from_=TWILIO_WHATSAPP_NUMBER,
-                to=from_number,
-                body=prefix + chunk,
-            )
-
-        logger.info("WhatsApp reply sent (chunked if required)")
+        logger.info("WhatsApp reply sent")
 
     except Exception:
         logger.exception("WhatsApp processing failed")

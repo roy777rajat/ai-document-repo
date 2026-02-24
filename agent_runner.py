@@ -74,13 +74,28 @@ def run_agent(user_input: str) -> str:
         step_start = time.perf_counter()
 
         try:
-            # 🔥 TOOLS RECEIVE FULL QUESTION + CONTEXT
+            # --------------------------------------------------------
+            # DOWNLOAD STEP — SELECT BEST MATCH BY CONFIDENCE
+            # --------------------------------------------------------
             if step == "download_document":
                 filename = None
-            if "resolved_filenames" in context and context["resolved_filenames"]:
-                filename = context["resolved_filenames"][0]
-                # Pass filename explicitly
+
+                confidence = context.get("confidence", {})
+                resolved = context.get("resolved_filenames", [])
+
+                if confidence:
+                    # Pick filename with highest confidence
+                    filename = max(confidence, key=confidence.get)
+                elif resolved:
+                    # Fallback (should rarely happen)
+                    filename = resolved[0]
+
+                if not filename:
+                    outputs.append("❌ Unable to determine document for download.")
+                    continue
+
                 result = tool.run(f'filename="{filename}"')
+
             else:
                 result = tool.run(user_input)
 
