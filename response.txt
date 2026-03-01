@@ -1,45 +1,26 @@
 ﻿ANSWER:
-Based on the context provided, the document list includes:
+Based on the context provided, the medicine name mentioned as SOS (as needed) and prescribed by Dr. Poushali Sanyal for the patient Aishiki Roy is:
 
-1. **TCS Letter of Appointment.pdf**
-   - This is a letter of appointment from Tata Consultancy Services (TCS) to Mr. Rajat Roy, appointing him as an Assistant Systems Engineer in Grade C1 effective from 03-Nov-2010.
-   - The letter includes details such as the offer of employment, the terms and conditions, and the Associate number.
+1. Tab. Meftal Spes
 
-2. **TCS Latest Increment Letter.pdf**
-   - This is a letter from TCS informing Mr. Rajat Roy about his revised annual compensation, effective from April 01, 2024.
-   - The letter provides the details of his India Annual Compensation, which is Rs. 17,93,840/-, and the breakdown of the compensation components.
+There is no download link provided in the given context.
 
-3. **2026-02-01_Statement.pdf**
-   - This is a bank statement from HSBC for Mr. Rajat Roy's account, covering the period from 2 January to 1 February 2026.
-   - The statement includes the opening balance, payments in, payments out, and the closing balance of the account.
-   - It also provides the International Bank Account Number (IBAN) and the Bank Identifier Code (BIC) for the account.
+CONFIDENCE (retrieval-only):
+{'2026-02-01_Statement.pdf': 0.189, 'Aishiki_Reliable_Poushali_2025_Gyano.pdf': 0.366, 'Munna-Lock-Invoice.pdf': 0.195, 'Laptop of Rajat.pdf': 1.0}
 
-In summary, the document list includes a TCS letter of appointment, a TCS letter regarding the latest increment, and a bank statement from HSBC for Mr. Rajat Roy's account.
-
-CONFIDENCE:
-{'TCS Letter of Appointment.pdf': 0.339, 'TCS Latest Increment Letter.pdf': 1.0, '2026-02-01_Statement.pdf': 0.348}
+TARGET (Actual docs):
+['Aishiki_Reliable_Poushali_2025_Gyano.pdf']
 
 ââââââââââââââââââââââ
 
-Document Metadata:
-| Document ID | Filename | Sender | Subject | Received At | Status |
-|-------------|----------|--------|---------|-------------|--------|
-| babb3eec-23f7-492c-9117-9144ed97a8ae | TCS Letter of Appointment.pdf | RAJAT ROY <roy777rajat@gmail.com> | B.Tech-Certificate / TCS Increment Letter & TCS Letter of Appointment | 2026-02-19T16:18:20.000Z | RECEIVED |
-| 5d5a1933-b834-4d15-b58c-b4bebed29242 | B.Tech-Certificate.pdf | RAJAT ROY <roy777rajat@gmail.com> | B.Tech-Certificate / TCS Increment Letter & TCS Letter of Appointment | 2026-02-19T16:18:20.000Z | RECEIVED |
-| 3e91f6c9-642f-415a-bfb8-2d3cff0a9b61 | Aishiki_Reliable_Poushali_2025_Gyano.pdf | RAJAT ROY <roy777rajat@gmail.com> | Aishiki_Reliable_Poushali_2025_Gyano.pdf | 2026-02-22T16:25:35.000Z | RECEIVED |
-| 3b1684cb-9edc-46a5-8dba-c30387e3ccd4 | 2026-02-01_Statement.pdf | RAJAT ROY <roy777rajat@gmail.com> | Statement | 2026-02-21T19:05:45.000Z | RECEIVED |
-| ddcec40d-ec6e-4687-aac8-5b19aeb25e4b | DocScanner 16 Jan 2026 3-05â¯pm.pdf | RAJAT ROY <roy777rajat@gmail.com> | Fwd: SIR | 2026-02-11T14:46:14.000Z | RECEIVED |
-| c7c55967-15f3-4028-ab97-f32eff411eb1 | Sem-1.pdf | RAJAT ROY <roy777rajat@gmail.com> | TEST | 2026-02-16T12:17:10.000Z | RECEIVED |
-| 4533a68e-bd5b-492a-b799-67a613884f67 | DocScanner 16 Jan 2026 3-05â¯pm.pdf | RAJAT ROY <roy777rajat@gmail.com> | Fwd: SIR | 2026-02-11T08:12:29.000Z | RECEIVED |
-| 89583806-706f-47ea-8eb3-659b1dea8c6c | Sem-4.pdf | RAJAT ROY <roy777rajat@gmail.com> | TEST | 2026-02-16T12:17:10.000Z | RECEIVED |
-| d4d2a3cd-708f-48b4-b199-71418813ca65 | Rajat_Roy_Data_ALML_5years_14years_IT_Resume (1).docx | RAJAT ROY <roy777rajat@gmail.com> | Resume of Rajat | 2026-02-19T17:11:50.000Z | RECEIVED |
-| 9eba317b-6f62-47cc-9472-5b3a06f5065f | _Nov2010-India-Payslip.pdf | Rajat Roy <rajat.roy2884@gmail.com> | TEST | 2026-02-15T08:31:22.000Z | RECEIVED |
-| 3ba66966-a6ef-4b71-b097-d66968eed14f | Sem-2.pdf | RAJAT ROY <roy777rajat@gmail.com> | TEST | 2026-02-16T12:17:10.000Z | RECEIVED |
-| e976bdfc-67c0-4e80-b324-7d2f8a8a787d | Sem-3.pdf | RAJAT ROY <roy777rajat@gmail.com> | TEST | 2026-02-16T12:17:10.000Z | RECEIVED |
-| 6bd5df9f-78fb-4f16-9906-62719d0467fd | TCS Latest Increment Letter.pdf | RAJAT ROY <roy777rajat@gmail.com> | B.Tech-Certificate / TCS Increment Letter & TCS Letter of Appointment | 2026-02-19T16:18:20.000Z | RECEIVED |
+Download URL: https://family-docs-raw.s3.amazonaws.com/year%3D2026/month%3D02/3e91f6c9-642f-415a-bfb8-2d3cff0a9b61/Aishiki_Reliable_Poushali_2025_Gyano.pdf?AWSAccessKeyId=AKIASB5SWQ62HHFKJDUR&Signature=dBFlwOnApq0hTGiVatJqeIGsuiA%3D&Expires=1772213095
 
+ð¡ You can also ask:
+- 1. Could you please confirm the name of the medicine prescribed by Dr. Poushali for Aishiki?
+- 2. Is there a specific dosage or duration of the prescribed medication that I should be aware of?
+- 3. Would it be possible to obtain a copy of the prescription or any additional details about the recommended treatment?
 
-â±ï¸ Response Time: 4959.06 ms
-ð§µ Trace ID: 52068017-14f0-4cec-8bbd-a5caf9b4c9d9
+â±ï¸ Response Time: 4434.94 ms
+ð§µ Trace ID: 9f9e6a2d-2de6-494a-9a28-80e2e1a52d6f
 
- -TS:4959.93 ms
+-TS:4439.85 ms

@@ -1,6 +1,12 @@
+# plan_generator.py
+
 from typing import List
-from llm import call_claude_simple
 import re
+
+# 🔴 UNCHANGED: LangSmith tracing (decorator-only, version-safe)
+from langsmith import traceable
+
+from llm import call_claude_simple
 
 
 PLAN_PROMPT = """
@@ -45,114 +51,126 @@ list_documents:
 - Use ONLY when the user is exploring what documents exist.
 - Do NOT use if the user already refers to a specific document.
 - Do NOT use together with download_document.
+
 User question:
 {question}
 """
 
 
 # ------------------------------------------------------------
-# 🔵 HARDENED STEP EXTRACTOR (INTENT-AWARE)
+# 🔵 HARDENED STEP EXTRACTOR
 # ------------------------------------------------------------
 def _extract_steps(text: str, question: str) -> List[str]:
-    """
-    Extract execution steps from ANY LLM output format
-    and prune based on user intent.
-    """
-
     text = text.lower()
     question_l = question.lower()
 
-    candidates = []
-
+    # --------------------------------------------------
+    # 1️⃣ Extract LLM-proposed steps (fuzzy)
+    # --------------------------------------------------
+    llm_steps = []
     if "search_documents" in text:
-        candidates.append("search_documents")
-
+        llm_steps.append("search_documents")
     if "download_document" in text:
-        candidates.append("download_document")
-
+        llm_steps.append("download_document")
     if "list_documents" in text:
-        candidates.append("list_documents")
+        llm_steps.append("list_documents")
+
+    llm_steps = list(dict.fromkeys(llm_steps))  # dedupe, preserve order
 
     # --------------------------------------------------
-    # Deduplicate while preserving order
+    # 2️⃣ Intent classification (STRICT)
     # --------------------------------------------------
-    seen = set()
-    ordered = []
-    for c in candidates:
-        if c not in seen:
-            seen.add(c)
-            ordered.append(c)
-
-    # --------------------------------------------------
-    # PURE DISCOVERY
-    # --------------------------------------------------
-    if any(k in question_l for k in [
-        "what documents",
-        "show me all",
+    discovery_phrases = [
+        "show me all available documents",
+        "show me all documents",
+        "list all documents",
+        "what documents do i have",
+        "what all documents do you have",
         "available documents",
-        "what all documents",
-    ]):
+        "what files are available",
+    ]
+
+    content_phrases = [
+        "marks",
+        "score",
+        "sgpa",
+        "transaction",
+        "details",
+        "latest",
+        "extract",
+        "from documents",
+        "from my documents",
+    ]
+
+    download_phrases = [
+        "download",
+        "file",
+        "send me",
+        "also the file",
+        "give me the file",
+        "copy of",
+        "pdf",
+    ]
+
+    is_discovery = any(p in question_l for p in discovery_phrases)
+    is_content = any(p in question_l for p in content_phrases)
+    is_download = any(p in question_l for p in download_phrases)
+
+    # --------------------------------------------------
+    # 🔴 RULE 1: PURE DISCOVERY WINS (ABSOLUTE)
+    # --------------------------------------------------
+    if is_discovery and not is_content and not is_download:
         return ["list_documents"]
 
     # --------------------------------------------------
-    # Detect filename
-    # --------------------------------------------------
-    has_filename = bool(
-        re.search(r"\b[\w\-]+\.(pdf|docx?|pptx?)\b", question_l)
-    )
-
-    # --------------------------------------------------
-    # Detect analytical / comparative intent
-    # --------------------------------------------------
-    is_analytical = any(k in question_l for k in [
-        "compare",
-        "maximum",
-        "highest",
-        "best",
-        "which semester",
-        "where sgpa",
-    ])
-
-    # --------------------------------------------------
-    # CONTENT-ONLY → remove download leakage
+    # 🔴 RULE 2: TRUST LLM FOR DISCOVERY IF NO CONTENT
     # --------------------------------------------------
     if (
-        "download" not in question_l
-        and "link" not in question_l
-        and "keep" not in question_l
-        and "download_document" in ordered
-        and not is_analytical
+        "list_documents" in llm_steps
+        and "search_documents" not in llm_steps
+        and not is_content
+        and not is_download
     ):
-        ordered = [s for s in ordered if s != "download_document"]
+        return ["list_documents"]
 
     # --------------------------------------------------
-    # Enforce ordering (search → download)
+    # 3️⃣ Build steps deterministically
     # --------------------------------------------------
-    if "download_document" in ordered and "search_documents" in ordered:
-        ordered = ["search_documents", "download_document"]
+    steps = []
+
+    if is_content:
+        steps.append("search_documents")
+
+    if is_download:
+        if "search_documents" not in steps:
+            steps.append("search_documents")
+        steps.append("download_document")
 
     # --------------------------------------------------
-    # 🔴 HARD RULE FOR THIS SYSTEM
-    # Download is NEVER standalone
+    # 🔴 RULE 3: SAFE FALLBACK (ONLY IF NOTHING MATCHES)
     # --------------------------------------------------
-    if ordered == ["download_document"]:
-        return ["search_documents", "download_document"]
+    if not steps:
+        return ["search_documents"]
 
-    # --------------------------------------------------
-    # Download without filename:
-    # - analytical → KEEP search + download
-    # - non-analytical → search first
-    # --------------------------------------------------
-    if "download_document" in ordered and not has_filename:
-        return ["search_documents", "download_document"]
-
-    return ordered
+    return steps
 
 
 # ------------------------------------------------------------
-# 🔵 PUBLIC API
+# 🔵 PUBLIC API (PLANNER)
 # ------------------------------------------------------------
+
+@traceable(
+    name="generate_plan",
+    run_type="llm",
+    tags=["planner"]
+)
 def generate_plan(question: str) -> List[str]:
+    """
+    Planner:
+    - LLM decides WHAT steps to run
+    - Output is normalized deterministically
+    """
+
     response = call_claude_simple(
         PLAN_PROMPT.format(question=question)
     )
@@ -163,7 +181,6 @@ def generate_plan(question: str) -> List[str]:
     steps = _extract_steps(response, question)
 
     if not steps:
-        # Ultra-safe fallback
-        return ["search_documents"]
+        steps = ["search_documents"]
 
     return steps

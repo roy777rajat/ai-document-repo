@@ -1,10 +1,14 @@
-from langchain.tools import tool
-from utils import search_documents
-from llm import call_claude_simple
+# search_documents.py
 
+from langchain.tools import tool
+from typing import List, Dict, Tuple
 import re
 import math
-from typing import List, Dict, Tuple
+
+
+
+from utils import search_documents
+from llm import call_claude_simple
 
 # 🔵 LangCache helpers
 from lang_cache_utils import langcache_store, langcache_lookup
@@ -18,6 +22,29 @@ def tokenize(text: str) -> List[str]:
     text = text.lower()
     text = re.sub(r"[^a-z0-9\. ]", " ", text)
     return [t for t in text.split() if len(t) > 2]
+
+
+# ============================================================
+# QUERY KEYWORDS
+# ============================================================
+
+def extract_query_keywords(query: str) -> set:
+    stopwords = {
+        "give", "please", "provide", "me", "the", "and", "for",
+        "by", "of", "is", "are", "with", "as", "can", "you"
+    }
+    tokens = tokenize(query)
+    return {t for t in tokens if t not in stopwords}
+
+
+def document_covers_query(
+    doc_chunks: List[str],
+    query_keywords: set,
+    min_hits: int = 2
+) -> bool:
+    text = " ".join(doc_chunks).lower()
+    hits = sum(1 for kw in query_keywords if kw in text)
+    return hits >= min_hits
 
 
 # ============================================================
@@ -39,7 +66,6 @@ def extract_inequality(query: str) -> Tuple[str, float] | None:
     for pattern, op in patterns:
         m = re.search(pattern, query.lower())
         if m:
-            print(f"\n📐 Inequality detected → {op} {m.group(1)}")
             return op, float(m.group(1))
     return None
 
@@ -70,10 +96,6 @@ def extract_document_selectors(query: str) -> dict:
 
     if ranking_number is not None:
         all_numbers.discard(ranking_number)
-
-    print(f"\n🎯 Document selectors resolved:")
-    print(f"   filenames → {filenames}")
-    print(f"   numbers   → {all_numbers}")
 
     return {
         "filenames": filenames,
@@ -135,16 +157,13 @@ def compute_confidence(grouped: Dict[str, Dict]) -> Dict[str, float]:
 
 
 # ============================================================
-# TOOL
+# 🔴 TOOL (INSTRUMENTED)
 # ============================================================
 
 @tool
 def search_documents_tool(input) -> dict:
     """
-    Semantic document search.
-    Returns:
-    - Answer (LLM-generated)
-    - Resolved filenames (for downstream tools)
+    Semantic document search with authoritative document selection.
     """
 
     query = None
@@ -159,10 +178,10 @@ def search_documents_tool(input) -> dict:
     if not query or not isinstance(query, str):
         return {"answer": "❌ Error: search query is missing or invalid."}
 
-    print(f"\n🔍 VECTOR SEARCH → '{query}'")
-
+    # --------------------------------------------------------
+    # VECTOR SEARCH
+    # --------------------------------------------------------
     raw = search_documents(query, top_k)
-    print(f"🧠 Vector returned {len(raw)} chunks (NOT documents)")
 
     selectors = extract_document_selectors(query)
     inequality = extract_inequality(query)
@@ -186,39 +205,78 @@ def search_documents_tool(input) -> dict:
     grouped = group_documents(filtered)
     confidence = compute_confidence(grouped)
 
-    context = ""
+    # --------------------------------------------------------
+    # AUTHORITATIVE DOCUMENT SELECTION
+    # --------------------------------------------------------
+    query_keywords = extract_query_keywords(query)
+
+    eligible_docs = []
     for fname, data in grouped.items():
-        context += f"\n📄 {fname}\n"
-        for c in data["chunks"]:
-            context += c + "\n"
+        if document_covers_query(data["chunks"], query_keywords):
+            eligible_docs.append((fname, data))
+
+    if not eligible_docs:
+        return {
+            "answer": "❌ No document contains sufficient information to answer the question."
+        }
+
+    eligible_docs.sort(key=lambda x: x[1]["score"], reverse=True)
+    authoritative_docs = [eligible_docs[0][0]]
+
+    # --------------------------------------------------------
+    # CONTEXT BUILD (AUTHORITATIVE ONLY)
+    # --------------------------------------------------------
+    context_text = ""
+    for fname in authoritative_docs:
+        for c in grouped[fname]["chunks"]:
+            context_text += c + "\n"
 
     final_prompt = f"""
 Answer the question using ONLY the context below.
 
 Context:
-{context}
+{context_text}
 
 Question:
 {query}
 """
 
+    # --------------------------------------------------------
+    # CACHE → LLM
+    # --------------------------------------------------------
     langcache_key = f"Q: {query.strip()}"
     cached_answer = langcache_lookup(langcache_key)
 
-    if cached_answer:
+    cache_hit = cached_answer is not None
+
+    if cache_hit:
         answer = cached_answer
     else:
         answer = call_claude_simple(final_prompt)
         langcache_store(langcache_key, answer)
 
+    # --------------------------------------------------------
+    # RETURN (TRACE-SAFE)
+    # --------------------------------------------------------
     return {
         "answer": f"""
 ANSWER:
 {answer}
 
-CONFIDENCE:
+CONFIDENCE (retrieval-only):
 {confidence}
+
+TARGET (Actual docs):
+{authoritative_docs}
 """.strip(),
-        "resolved_filenames": list(grouped.keys()),
-        "confidence": confidence
+        "resolved_filenames": authoritative_docs,
+        "confidence": confidence,
+
+        # 🔴 TRACE SIGNALS (SAFE)
+        "trace": {
+            "authoritative_docs": authoritative_docs,
+            "confidence": confidence,
+            "cache_hit": cache_hit,
+            "answer_length_chars": len(answer),
+        }
     }

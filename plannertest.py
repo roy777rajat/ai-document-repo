@@ -94,4 +94,16 @@ if __name__ == "__main__":
         "Can you please compare from all semester academic marsheet where SGPA is maximum and share the details about that doucument and give a one copy link of that document."
     )
 
+    # ---------------------------------------------------------
+    # TEST 11 — 
+    # ---------------------------------------------------------
+    run_test_case(
+        "Can you please give me the medicine name as SOS mentioned and prescribed by Reliable diagnostic by Doctor Poushali for Aishiki? And provide a download link?"
+    )
+
+
+    run_test_case(
+        "Can you please share the latest 3 HSBC Transaction from you documents?"
+    )
+
     print("\n🔵 Planner visual tests completed.\n")

@@ -85,7 +85,7 @@ if __name__ == "__main__":
     # TEST 6 — FREE-FORM / NATURAL LANGUAGE (REALISTIC)
     # ---------------------------------------------------------
     run_test_case(
-        "Give me the top 3 list of documents what you received latest"
+        "Can you please share the latest 3 HSBC Transaction from you documents?"
     )
 
     print("🎉 ALL TESTS COMPLETED")

@@ -1,6 +1,49 @@
+# agent_runner.py
+
+import os
+import json
+import boto3
 import uuid
 import time
 from typing import List, Dict, Any
+
+# ============================================================
+# 🔴 CHANGED: LangSmith Secrets + Env Bootstrap (AUTHORITATIVE)
+# ============================================================
+
+def _load_langsmith_key_from_secrets():
+    """
+    Load LangSmith API key from AWS Secrets Manager.
+    MUST be called before importing langsmith.
+    """
+    secret_name = "dev/python/api"
+    region_name = "eu-west-1"
+
+    client = boto3.client("secretsmanager", region_name=region_name)
+    response = client.get_secret_value(SecretId=secret_name)
+
+    secret_string = response.get("SecretString")
+    secret_json = json.loads(secret_string)
+
+    return secret_json["LANGCHAIN_API_KEY"]
+
+
+def _init_langsmith_env():
+    """
+    Initialize LangSmith exactly like the working smoke test.
+    """
+    os.environ["LANGCHAIN_TRACING_V2"] = "true"
+    os.environ["LANGCHAIN_PROJECT"] = "ai-document-agent-dev"
+    os.environ["LANGCHAIN_ENDPOINT"] = "https://eu.api.smith.langchain.com"
+    os.environ["LANGSMITH_ENDPOINT"] = "https://eu.api.smith.langchain.com"
+    os.environ["LANGCHAIN_API_KEY"] = _load_langsmith_key_from_secrets()
+
+
+# 🔴 CRITICAL: init BEFORE importing langsmith
+_init_langsmith_env()
+
+# 🔴 Import AFTER env vars are set
+from langsmith import traceable
 
 # ============================================================
 # 🔵 Planner
@@ -14,9 +57,8 @@ from tools.search_documents import search_documents_tool
 from tools.download_document import download_document_tool
 from tools.get_all_document_metadata import get_all_document_metadata_tool
 
-
 # ============================================================
-# 🔵 Tool Registry (EXTENSIBLE)
+# 🔵 Tool Registry
 # ============================================================
 TOOL_REGISTRY = {
     "search_documents": search_documents_tool,
@@ -24,19 +66,26 @@ TOOL_REGISTRY = {
     "list_documents": get_all_document_metadata_tool,
 }
 
-
 # ============================================================
 # 🔵 MAIN AGENT ENTRY (Planner → Executor)
 # ============================================================
-def run_agent(user_input: str) -> str:
+
+@traceable(
+    name="run_agent",
+    run_type="chain",
+    tags=["production", "planner-executor"]
+)
+def run_agent(
+    user_input: str,
+    *,
+    channel: str = "unknown",
+    user_id: str = "anonymous"
+) -> str:
     """
     Production-grade agent execution:
-
     - Planner decides WHAT steps to run
     - Executor runs steps strictly in order
     - NO ReAct
-    - NO dynamic step insertion
-    - Executor manages execution DATA (context)
     """
 
     trace_id = str(uuid.uuid4())
@@ -56,12 +105,10 @@ def run_agent(user_input: str) -> str:
     print(f"🧠 EXECUTION PLAN → {plan}")
 
     outputs: List[str] = []
-
-    # 🔵 EXECUTION CONTEXT (DATA FLOW ONLY)
     context: Dict[str, Any] = {}
 
     # --------------------------------------------------------
-    # STEP 2: EXECUTE PLAN (STRICT ORDER)
+    # STEP 2: EXECUTE PLAN
     # --------------------------------------------------------
     for step in plan:
         tool = TOOL_REGISTRY.get(step)
@@ -74,34 +121,21 @@ def run_agent(user_input: str) -> str:
         step_start = time.perf_counter()
 
         try:
-            # --------------------------------------------------------
-            # DOWNLOAD STEP — SELECT BEST MATCH BY CONFIDENCE
-            # --------------------------------------------------------
             if step == "download_document":
-                filename = None
-
-                confidence = context.get("confidence", {})
                 resolved = context.get("resolved_filenames", [])
 
-                if confidence:
-                    # Pick filename with highest confidence
-                    filename = max(confidence, key=confidence.get)
-                elif resolved:
-                    # Fallback (should rarely happen)
-                    filename = resolved[0]
-
-                if not filename:
-                    outputs.append("❌ Unable to determine document for download.")
+                if not resolved:
+                    outputs.append("❌ No authoritative document available for download.")
                     continue
 
-                result = tool.run(f'filename="{filename}"')
+                filename = resolved[0]
+                assert filename in resolved, "FATAL: download document mismatch"
 
+                result = tool.run(f'filename="{filename}"')
             else:
+                # Rule: full user question always passed unchanged
                 result = tool.run(user_input)
 
-            # -------------------------------
-            # CONTEXT MERGE (IF TOOL RETURNS DATA)
-            # -------------------------------
             if isinstance(result, dict):
                 context.update(result)
                 if "answer" in result:
@@ -121,11 +155,20 @@ def run_agent(user_input: str) -> str:
     # --------------------------------------------------------
     # STEP 3: FINAL RESPONSE
     # --------------------------------------------------------
-    end_ts = time.perf_counter()
-    total_ms = round((end_ts - start_ts) * 1000, 2)
+    total_ms = round((time.perf_counter() - start_ts) * 1000, 2)
 
     final_answer = "\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n".join(outputs)
-    final_answer += f"\n\n⏱️ Response Time: {total_ms} ms"
+
+    followups = context.get("followup_questions", [])
+    if followups:
+        final_answer += "\n\n💡 You can also ask:\n"
+        for q in followups:
+            final_answer += f"- {q}\n"
+
+    final_answer += f"\n⏱️ Response Time: {total_ms} ms"
     final_answer += f"\n🧵 Trace ID: {trace_id}"
+
+    # 🔴 IMPORTANT: allow async trace flush
+    time.sleep(1.5)
 
     return final_answer
