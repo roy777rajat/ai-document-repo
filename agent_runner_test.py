@@ -48,37 +48,37 @@ if __name__ == "__main__":
 #     # ---------------------------------------------------------
 #     # TEST 1 — CONTENT ONLY
 #     # ---------------------------------------------------------
-#     run_test_case(
-#         "Can you please share the details from Sem-1.pdf?"
-#     )
+    run_test_case(
+        "Can you please share the details from Sem-1.pdf?"
+    )
 
 #     # ---------------------------------------------------------
 #     # TEST 2 — DOWNLOAD ONLY
 #     # ---------------------------------------------------------
-#     run_test_case(
-#         "Please give me the download link for Sem-1.pdf"
-#     )
+    run_test_case(
+        "Please give me the download link for Sem-1.pdf"
+    )
 
 #    # ---------------------------------------------------------
 #    # TEST 3 — DISCOVERY ONLY
 #    # ---------------------------------------------------------
-#     run_test_case(
-#         "Show me all available documents"
-#     )
+    run_test_case(
+        "Show me all available documents"
+    )
 
 #     # ---------------------------------------------------------
 #     # TEST 4 — CONTENT + DOWNLOAD (CRITICAL TEST)
 #     # ---------------------------------------------------------
-#     run_test_case(
-#         "Can you please share me the semester 1 content document and then provide download link so that I can just click the link and download"
-#     )
+    run_test_case(
+        "Can you please share me the semester 1 content document and then provide download link so that I can just click the link and download"
+    )
 
     # # ---------------------------------------------------------
     # # TEST 5 — FREE-FORM / NATURAL LANGUAGE (REALISTIC)
     # # ---------------------------------------------------------
-    # run_test_case(
-    #     "I want to understand my semester 3 results and keep the file for later"
-    # )
+    run_test_case(
+        "I want to understand my semester 3 results and keep the file for later"
+    )
 
 
     # ---------------------------------------------------------
@@ -86,6 +86,13 @@ if __name__ == "__main__":
     # ---------------------------------------------------------
     run_test_case(
         "Can you please share the latest 3 HSBC Transaction from you documents?"
+    )
+
+    # ---------------------------------------------------------
+    # TEST 7 — Handle multiple doc
+    # ---------------------------------------------------------
+    run_test_case(
+        "can you please give the adhar card , Pan Card, Offer letter salary amount of Rajat Roy"
     )
 
     print("🎉 ALL TESTS COMPLETED")
