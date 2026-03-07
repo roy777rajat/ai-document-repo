@@ -11,3 +11,4 @@ twilio>=8.0.0
 python-multipart>=0.0.6
 langcache
 langsmith
+requests

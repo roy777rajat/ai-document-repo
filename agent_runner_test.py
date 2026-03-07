@@ -45,54 +45,54 @@ if __name__ == "__main__":
 
     print("\n🚀 STARTING AGENT RUNNER TESTS\n")
 
-#     # ---------------------------------------------------------
-#     # TEST 1 — CONTENT ONLY
-#     # ---------------------------------------------------------
-    run_test_case(
-        "Can you please share the details from Sem-1.pdf?"
-    )
+# #     # ---------------------------------------------------------
+# #     # TEST 1 — CONTENT ONLY
+# #     # ---------------------------------------------------------
+#     run_test_case(
+#         "Can you please share the details from Sem-1.pdf?"
+#     )
+
+# #     # ---------------------------------------------------------
+# #     # TEST 2 — DOWNLOAD ONLY
+# #     # ---------------------------------------------------------
+#     run_test_case(
+#         "Please give me the download link for Sem-1.pdf"
+#     )
+
+# #    # ---------------------------------------------------------
+# #    # TEST 3 — DISCOVERY ONLY
+# #    # ---------------------------------------------------------
+#     run_test_case(
+#         "Show me all available documents"
+#     )
+
+# #     # ---------------------------------------------------------
+# #     # TEST 4 — CONTENT + DOWNLOAD (CRITICAL TEST)
+# #     # ---------------------------------------------------------
+#     run_test_case(
+#         "Can you please share me the semester 1 content document and then provide download link so that I can just click the link and download"
+#     )
+
+#     # # ---------------------------------------------------------
+#     # # TEST 5 — FREE-FORM / NATURAL LANGUAGE (REALISTIC)
+#     # # ---------------------------------------------------------
+#     run_test_case(
+#         "I want to understand my semester 3 results and keep the file for later"
+#     )
+
 
 #     # ---------------------------------------------------------
-#     # TEST 2 — DOWNLOAD ONLY
+#     # TEST 6 — FREE-FORM / NATURAL LANGUAGE (REALISTIC)
 #     # ---------------------------------------------------------
-    run_test_case(
-        "Please give me the download link for Sem-1.pdf"
-    )
-
-#    # ---------------------------------------------------------
-#    # TEST 3 — DISCOVERY ONLY
-#    # ---------------------------------------------------------
-    run_test_case(
-        "Show me all available documents"
-    )
-
-#     # ---------------------------------------------------------
-#     # TEST 4 — CONTENT + DOWNLOAD (CRITICAL TEST)
-#     # ---------------------------------------------------------
-    run_test_case(
-        "Can you please share me the semester 1 content document and then provide download link so that I can just click the link and download"
-    )
-
-    # # ---------------------------------------------------------
-    # # TEST 5 — FREE-FORM / NATURAL LANGUAGE (REALISTIC)
-    # # ---------------------------------------------------------
-    run_test_case(
-        "I want to understand my semester 3 results and keep the file for later"
-    )
-
-
-    # ---------------------------------------------------------
-    # TEST 6 — FREE-FORM / NATURAL LANGUAGE (REALISTIC)
-    # ---------------------------------------------------------
-    run_test_case(
-        "Can you please share the latest 3 HSBC Transaction from you documents?"
-    )
+#     run_test_case(
+#         "Can you please share the latest 3 HSBC Transaction from you documents?"
+#     )
 
     # ---------------------------------------------------------
     # TEST 7 — Handle multiple doc
     # ---------------------------------------------------------
     run_test_case(
-        "can you please give the adhar card , Pan Card, Offer letter salary amount of Rajat Roy"
+        "Please share the Insurance details about Registration Number : WB02AK5172 of Rajat Roy of zuno private car?"
     )
 
     print("🎉 ALL TESTS COMPLETED")

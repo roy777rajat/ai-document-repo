@@ -12,6 +12,7 @@ __pycache__/
 *.so
 
 # Distribute / packaging
+.csv
 .Python
 build/
 develop-eggs/

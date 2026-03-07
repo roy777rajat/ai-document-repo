@@ -1,26 +1,5 @@
-﻿ANSWER:
-Based on the context provided, the medicine name mentioned as SOS (as needed) and prescribed by Dr. Poushali Sanyal for the patient Aishiki Roy is:
+﻿Document located.
+â±ï¸ Response Time: 3250.67 ms
+ð§µ Trace ID: 60fdf34d-c02b-4bc3-8dbe-99b6b3c8bacf
 
-1. Tab. Meftal Spes
-
-There is no download link provided in the given context.
-
-CONFIDENCE (retrieval-only):
-{'2026-02-01_Statement.pdf': 0.189, 'Aishiki_Reliable_Poushali_2025_Gyano.pdf': 0.366, 'Munna-Lock-Invoice.pdf': 0.195, 'Laptop of Rajat.pdf': 1.0}
-
-TARGET (Actual docs):
-['Aishiki_Reliable_Poushali_2025_Gyano.pdf']
-
-ââââââââââââââââââââââ
-
-Download URL: https://family-docs-raw.s3.amazonaws.com/year%3D2026/month%3D02/3e91f6c9-642f-415a-bfb8-2d3cff0a9b61/Aishiki_Reliable_Poushali_2025_Gyano.pdf?AWSAccessKeyId=AKIASB5SWQ62HHFKJDUR&Signature=dBFlwOnApq0hTGiVatJqeIGsuiA%3D&Expires=1772213095
-
-ð¡ You can also ask:
-- 1. Could you please confirm the name of the medicine prescribed by Dr. Poushali for Aishiki?
-- 2. Is there a specific dosage or duration of the prescribed medication that I should be aware of?
-- 3. Would it be possible to obtain a copy of the prescription or any additional details about the recommended treatment?
-
-â±ï¸ Response Time: 4434.94 ms
-ð§µ Trace ID: 9f9e6a2d-2de6-494a-9a28-80e2e1a52d6f
-
--TS:4439.85 ms
+-TS:4805.73 ms
