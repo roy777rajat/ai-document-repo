@@ -8,14 +8,10 @@ import time
 from typing import List, Dict, Any
 
 # ============================================================
-# 🔴 CHANGED: LangSmith Secrets + Env Bootstrap (AUTHORITATIVE)
+# LangSmith Secrets + Env Bootstrap
 # ============================================================
 
 def _load_langsmith_key_from_secrets():
-    """
-    Load LangSmith API key from AWS Secrets Manager.
-    MUST be called before importing langsmith.
-    """
     secret_name = "dev/python/api"
     region_name = "eu-west-1"
 
@@ -29,37 +25,34 @@ def _load_langsmith_key_from_secrets():
 
 
 def _init_langsmith_env():
-    """
-    Initialize LangSmith exactly like the working smoke test.
-    """
     os.environ["LANGCHAIN_TRACING_V2"] = "true"
     os.environ["LANGCHAIN_PROJECT"] = "ai-document-agent-dev"
     os.environ["LANGCHAIN_ENDPOINT"] = "https://eu.api.smith.langchain.com"
-    os.environ["LANGSMITH_ENDPOINT"] = "https://eu.api.smith.langchain.com"
     os.environ["LANGCHAIN_API_KEY"] = _load_langsmith_key_from_secrets()
 
 
-# 🔴 CRITICAL: init BEFORE importing langsmith
 _init_langsmith_env()
 
-# 🔴 Import AFTER env vars are set
 from langsmith import traceable
 
 # ============================================================
-# 🔵 Planner
+# Planner
 # ============================================================
+
 from plan_generator import generate_plan
 
 # ============================================================
-# 🔵 Tools (DIRECT, ATOMIC)
+# Tools
 # ============================================================
+
 from tools.search_documents import search_documents_tool
 from tools.download_document import download_document_tool
 from tools.get_all_document_metadata import get_all_document_metadata_tool
 
 # ============================================================
-# 🔵 Tool Registry
+# Tool Registry
 # ============================================================
+
 TOOL_REGISTRY = {
     "search_documents": search_documents_tool,
     "download_document": download_document_tool,
@@ -67,7 +60,7 @@ TOOL_REGISTRY = {
 }
 
 # ============================================================
-# 🔵 MAIN AGENT ENTRY (Planner → Executor)
+# MAIN AGENT ENTRY
 # ============================================================
 
 @traceable(
@@ -81,22 +74,17 @@ def run_agent(
     channel: str = "unknown",
     user_id: str = "anonymous"
 ) -> str:
-    """
-    Production-grade agent execution:
-    - Planner decides WHAT steps to run
-    - Executor runs steps strictly in order
-    - NO ReAct
-    """
 
     trace_id = str(uuid.uuid4())
     start_ts = time.perf_counter()
 
-    print(f"\n🧠 TRACE_ID = {trace_id}")
-    print("🧠 GENERATING PLAN")
+    print(f"\nTRACE_ID = {trace_id}")
+    print("GENERATING PLAN")
 
     # --------------------------------------------------------
     # STEP 1: PLAN
     # --------------------------------------------------------
+
     plan = generate_plan(user_input)
 
     if not plan:
@@ -110,7 +98,9 @@ def run_agent(
     # --------------------------------------------------------
     # STEP 2: EXECUTE PLAN
     # --------------------------------------------------------
+
     for step in plan:
+
         tool = TOOL_REGISTRY.get(step)
 
         if not tool:
@@ -121,7 +111,9 @@ def run_agent(
         step_start = time.perf_counter()
 
         try:
+
             if step == "download_document":
+
                 resolved = context.get("resolved_filenames", [])
 
                 if not resolved:
@@ -129,24 +121,45 @@ def run_agent(
                     continue
 
                 filename = resolved[0]
+
                 assert filename in resolved, "FATAL: download document mismatch"
 
                 result = tool.run(f'filename="{filename}"')
+
+                if isinstance(result, dict):
+
+                    context.update(result)
+
+                    download_url = result.get("download_url")
+
+                    if download_url:
+                        outputs.append("📥 Download Link:")
+                        outputs.append(download_url)
+
+                else:
+                    outputs.append(str(result))
+
             else:
-                # Rule: full user question always passed unchanged
+
+                # Rule: full user question passed unchanged
                 result = tool.run(user_input)
 
-            if isinstance(result, dict):
-                context.update(result)
-                if "answer" in result:
-                    outputs.append(result["answer"])
-            else:
-                outputs.append(result)
+                if isinstance(result, dict):
+
+                    context.update(result)
+
+                    if "answer" in result:
+                        outputs.append(result["answer"])
+
+                else:
+                    outputs.append(str(result))
 
         except Exception as e:
+
             outputs.append(f"❌ Error executing {step}: {str(e)}")
 
         step_end = time.perf_counter()
+
         print(
             f"⏱️ STEP {step} completed in "
             f"{round((step_end - step_start) * 1000, 2)} ms"
@@ -155,11 +168,13 @@ def run_agent(
     # --------------------------------------------------------
     # STEP 3: FINAL RESPONSE
     # --------------------------------------------------------
+
     total_ms = round((time.perf_counter() - start_ts) * 1000, 2)
 
     final_answer = "\n\n━━━━━━━━━━━━━━━━━━━━━━\n\n".join(outputs)
 
     followups = context.get("followup_questions", [])
+
     if followups:
         final_answer += "\n\n💡 You can also ask:\n"
         for q in followups:
@@ -168,7 +183,6 @@ def run_agent(
     final_answer += f"\n⏱️ Response Time: {total_ms} ms"
     final_answer += f"\n🧵 Trace ID: {trace_id}"
 
-    # 🔴 IMPORTANT: allow async trace flush
     time.sleep(1.5)
 
     return final_answer
