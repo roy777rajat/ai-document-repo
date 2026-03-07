@@ -3,7 +3,7 @@
 from typing import List
 import re
 
-# 🔴 UNCHANGED: LangSmith tracing (decorator-only, version-safe)
+
 from langsmith import traceable
 
 from llm import call_claude_simple
@@ -88,6 +88,12 @@ def _extract_steps(text: str, question: str) -> List[str]:
         "what all documents do you have",
         "available documents",
         "what files are available",
+        "document list",
+        "list of documents",
+        "doc list",
+        "list doc"
+        "doc metadata",
+        "metadata list"
     ]
 
     content_phrases = [
@@ -100,6 +106,9 @@ def _extract_steps(text: str, question: str) -> List[str]:
         "extract",
         "from documents",
         "from my documents",
+        "insurance",
+        "less than",
+        "min","minimum","max","maximum","all the details"
     ]
 
     download_phrases = [
@@ -110,6 +119,9 @@ def _extract_steps(text: str, question: str) -> List[str]:
         "give me the file",
         "copy of",
         "pdf",
+        "save",
+        "future use",
+        "link"
     ]
 
     is_discovery = any(p in question_l for p in discovery_phrases)
@@ -175,7 +187,7 @@ def generate_plan(question: str) -> List[str]:
         PLAN_PROMPT.format(question=question)
     )
 
-    print("🧪 RAW PLANNER OUTPUT:")
+    print("RAW PLANNER OUTPUT:")
     print(response)
 
     steps = _extract_steps(response, question)
