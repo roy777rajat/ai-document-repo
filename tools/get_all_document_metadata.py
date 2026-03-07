@@ -2,7 +2,7 @@
 
 from langchain.tools import tool
 import time
-
+from datetime import datetime
 
 from utils import get_all_document_metadata
 
@@ -20,12 +20,14 @@ def get_all_document_metadata_tool(tool_input=None) -> str:
         print("---------- ENTER get_all_document_metadata_tool ----------")
 
         metadata = get_all_document_metadata()
+
         latency_ms = round((time.perf_counter() - start_ts) * 1000, 2)
 
         if not metadata:
+
             return {
                 "status": "success",
-                "message": "No metadata found.",
+                "answer": "📭 No documents found in the system.",
                 "trace": {
                     "document_count": 0,
                     "latency_ms": latency_ms,
@@ -34,25 +36,40 @@ def get_all_document_metadata_tool(tool_input=None) -> str:
             }
 
         # --------------------------------------------------------
-        # Build user-facing table (UNCHANGED BEHAVIOR)
+        # SORT BY RECEIVED DATE DESC
         # --------------------------------------------------------
-        table_str = "Document Metadata:\n"
-        table_str += "| Document ID | Filename | Sender | Subject | Received At | Status |\n"
-        table_str += "|-------------|----------|--------|---------|-------------|--------|\n"
 
-        for item in metadata:
-            table_str += (
-                f"| {item.get('document_id', '')} "
-                f"| {item.get('filename', '')} "
-                f"| {item.get('sender_email', '')} "
-                f"| {item.get('subject', '')} "
-                f"| {item.get('received_at', '')} "
-                f"| {item.get('status', '')} |\n"
+        def parse_date(item):
+            try:
+                return datetime.fromisoformat(item.get("received_at", "").replace("Z", ""))
+            except:
+                return datetime.min
+
+        metadata = sorted(metadata, key=parse_date, reverse=True)
+
+        # --------------------------------------------------------
+        # BUILD CHAT FRIENDLY OUTPUT
+        # --------------------------------------------------------
+
+        output = f"📄 Available Documents ({len(metadata)})\n\n"
+
+        for idx, item in enumerate(metadata, start=1):
+
+            filename = item.get("filename", "Unknown")
+            sender = item.get("sender_email", "Unknown")
+            subject = item.get("subject", "N/A")
+            received = item.get("received_at", "N/A")
+
+            output += (
+                f"{idx}️⃣ {filename} 📋\n"
+                f"   Sender: {sender}\n"
+                f"   Subject: {subject}\n"
+                f"   Received: {received}\n\n"
             )
 
         return {
             "status": "success",
-            "answer": table_str,
+            "answer": output,
             "trace": {
                 "document_count": len(metadata),
                 "latency_ms": latency_ms,
@@ -61,6 +78,7 @@ def get_all_document_metadata_tool(tool_input=None) -> str:
         }
 
     except Exception as e:
+
         latency_ms = round((time.perf_counter() - start_ts) * 1000, 2)
 
         return {
