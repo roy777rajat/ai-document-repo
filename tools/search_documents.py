@@ -142,6 +142,12 @@ def search_documents_tool(input) -> dict:
         return {"answer": "Invalid query"}
 
     # --------------------------------------------------------
+    # DETECT DOWNLOAD INTENT (NEW SAFE CHANGE)
+    # --------------------------------------------------------
+
+    download_requested = "download" in query.lower()
+
+    # --------------------------------------------------------
     # VECTOR SEARCH
     # --------------------------------------------------------
 
@@ -228,25 +234,6 @@ def search_documents_tool(input) -> dict:
             context += c + "\n"
 
     # --------------------------------------------------------
-    # DOWNLOAD QUERIES
-    # --------------------------------------------------------
-
-    if "download" in query.lower():
-
-        return {
-
-            "answer": "Document located.",
-
-            "resolved_filenames": [authoritative_doc],
-
-            "confidence": compute_confidence(grouped),
-
-            "trace": {
-                "authoritative_doc": authoritative_doc
-            }
-        }
-
-    # --------------------------------------------------------
     # PROMPT
     # --------------------------------------------------------
 
@@ -279,7 +266,11 @@ Provide the answer based only on the document text.
 
         cache_hit = False
 
-    return {
+    # --------------------------------------------------------
+    # FINAL RESPONSE
+    # --------------------------------------------------------
+
+    response = {
 
         "answer": answer,
 
@@ -296,3 +287,8 @@ Provide the answer based only on the document text.
             "cache_hit": cache_hit
         }
     }
+
+    if download_requested:
+        response["download_requested"] = True
+
+    return response
